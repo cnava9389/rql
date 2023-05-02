@@ -1,12 +1,12 @@
-use std::hash::BuildHasher;
+use std::hash::{BuildHasher, Hash};
 
-use super::inner::Inner;
+use super::{inner::Inner, value::Value};
 use left_right::{
     aliasing::{Aliased, DropBehavior},
     Absorb,
 };
-use serde_json::Value;
 
+#[derive(Debug)]
 pub struct NoDrop;
 impl DropBehavior for NoDrop {
     const DO_DROP: bool = false;
@@ -17,52 +17,70 @@ impl DropBehavior for DoDrop {
     const DO_DROP: bool = true;
 }
 
-pub(super) type NoDropVal = Aliased<Value, NoDrop>;
-type DropVal = Aliased<Value, DoDrop>;
+type NoDropVal<T> = Aliased<T, NoDrop>;
 
 /// change this to be private
-pub enum Op {
-    Insert(String, NoDropVal),
-    Delete(String),
-    Update(String, NoDropVal),
+pub(super) enum Op<K, V, M> {
+    Insert(K, NoDropVal<V>),
+    Delete(K),
+    SetMeta(M),
+    MarkReady,
 }
 
-impl<S> Absorb<Op> for Inner<NoDropVal, S>
+impl<K, V, M, S> Absorb<Op<K, V, M>> for Inner<K, V, M, S>
 where
-    S: BuildHasher,
+    K: Eq + Hash + Clone,
+    V: Eq,
+    S: BuildHasher + Clone,
+    M: Clone,
 {
-    fn absorb_first(&mut self, operation: &mut Op, _other: &Self) {
+    fn absorb_first(&mut self, operation: &mut Op<K, V, M>, _other: &Self) {
         match operation {
             Op::Insert(k, v) => {
-                self.data.insert(k.to_owned(), unsafe { v.alias() });
+                self.data
+                    .insert(k.to_owned(), Value::new(unsafe { v.alias() }));
             }
             Op::Delete(k) => {
                 self.data.remove(k);
             }
-            Op::Update(_, _) => todo!(),
+            Op::SetMeta(m) => {
+                self.meta = m.clone();
+            }
+            Op::MarkReady => {
+                self.ready = true;
+            }
         };
     }
 
     fn sync_with(&mut self, first: &Self) {
         assert_eq!(self.data.len(), 0);
-        self.data.extend(
+        let inner: &mut Inner<K, V, M, S, DoDrop> = unsafe { &mut *(self as *mut _ as *mut _) };
+        inner.data.extend(
             first
                 .data
                 .iter()
-                .map(|(k, v)| (k.to_owned(), unsafe { v.alias() })),
+                .map(|(k, v)| (k.to_owned(), unsafe { Value::alias(v) })),
         );
+        self.ready = true;
     }
 
-    fn absorb_second(&mut self, operation: Op, _other: &Self) {
-        let with_drop: &mut Inner<DropVal, S> = unsafe { &mut *(self as *mut _ as *mut _) };
+    fn absorb_second(&mut self, operation: Op<K, V, M>, _other: &Self) {
+        let with_drop: &mut Inner<K, V, M, S, DoDrop> = unsafe { &mut *(self as *mut _ as *mut _) };
         match operation {
             Op::Insert(k, v) => {
-                with_drop.data.insert(k, unsafe { v.change_drop() });
+                with_drop
+                    .data
+                    .insert(k, Value::new(unsafe { v.change_drop() }));
             }
             Op::Delete(ref k) => {
-                self.data.remove(k);
+                with_drop.data.remove(k);
             }
-            Op::Update(_, _) => todo!(),
+            Op::SetMeta(m) => {
+                with_drop.meta = m;
+            }
+            Op::MarkReady => {
+                with_drop.ready = true;
+            }
         };
     }
 
@@ -70,7 +88,7 @@ where
 
     fn drop_second(self: Box<Self>) {
         // Convert self to DoDrop and drop it.
-        let with_drop: Box<Inner<DropVal, S>> =
+        let with_drop: Box<Inner<K, V, M, S, DoDrop>> =
             unsafe { Box::from_raw(Box::into_raw(self) as *mut _ as *mut _) };
         drop(with_drop);
     }
