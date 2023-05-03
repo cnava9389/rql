@@ -8,6 +8,11 @@ use left_right::{aliasing::Aliased, ReadGuard};
 
 use super::{inner::Inner, mapguard::MapReadRef, op::Op, value::Value};
 
+/// A handle that may be used to read from the eventually consistent map.
+///
+/// Note that any changes made to the map will not be made visible until the writer calls
+/// [`publish`](crate::WriteHandle::publish). In other words, all operations performed on a
+/// `ReadHandle` will *only* see writes to the map that preceeded the last call to `publish`.
 pub struct ReadHandle<K, V, M = (), S = RandomState>
 where
     K: Eq + Hash,
@@ -150,6 +155,13 @@ where
     }
 }
 
+/// A handle that may be used to modify the eventually consistent map.
+///
+/// Note that any changes made to the map will not be made visible to readers until
+/// [`publish`](Self::publish) is called.
+///
+/// When the `WriteHandle` is dropped, the map is immediately (but safely) taken away from all
+/// readers, causing all future lookups to return `None`.
 pub struct WriteHandle<K, V, M = (), S = RandomState>
 where
     K: Eq + Hash + Clone,

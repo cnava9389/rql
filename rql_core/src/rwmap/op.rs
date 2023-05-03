@@ -6,12 +6,14 @@ use left_right::{
     Absorb,
 };
 
+/// struct that is used to let the [`Inner`](crate::inner::Inner) struct know not to drop value.
 #[derive(Debug)]
 pub struct NoDrop;
 impl DropBehavior for NoDrop {
     const DO_DROP: bool = false;
 }
 
+/// struct that indicates value should be dropped from [`Inner`](crate::inner::Inner).
 pub(super) struct DoDrop;
 impl DropBehavior for DoDrop {
     const DO_DROP: bool = true;
@@ -19,7 +21,8 @@ impl DropBehavior for DoDrop {
 
 type NoDropVal<T> = Aliased<T, NoDrop>;
 
-/// change this to be private
+/// enum that represents list of operations that [`Inner`](crate::inner::Inner) will apply
+/// to underlying maps
 pub(super) enum Op<K, V, M> {
     Insert(K, NoDropVal<V>),
     Delete(K),

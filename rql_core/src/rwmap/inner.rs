@@ -1,12 +1,12 @@
-use std::{
-    collections::HashMap,
-    hash::{BuildHasher, Hash},
-};
+use hashbrown::HashMap;
+use std::hash::{BuildHasher, Hash};
 
 use left_right::aliasing::DropBehavior;
 
 use super::{op::NoDrop, value::Value};
 
+/// The underlying struct that contains the hashmap, meta, and hasher.
+/// The V will be wrapped in a Value Wrapper type check [`Value`](crate::value::Value).
 pub struct Inner<K, V, M, S, D = NoDrop>
 where
     K: Eq + Hash,
@@ -41,6 +41,7 @@ where
     K: Eq + Hash,
     S: BuildHasher + Clone,
 {
+    /// default implementation that only takes a hasher and contains () as meta.
     pub(super) fn with_hasher(hasher: S) -> Self {
         Self {
             data: HashMap::with_hasher(hasher.clone()),
@@ -56,6 +57,8 @@ where
     K: Eq + Hash,
     S: BuildHasher + Clone,
 {
+    /// takes meta and hasher. A more customizable option and should be considered
+    /// over [`with_hasher`](crate::inner::Inner::with_hasher)
     pub(super) fn with_meta_and_hasher(meta: M, hasher: S) -> Self {
         Self {
             data: HashMap::with_hasher(hasher.clone()),

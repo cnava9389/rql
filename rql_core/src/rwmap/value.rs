@@ -1,6 +1,7 @@
 use super::op::{DoDrop, NoDrop};
 use left_right::aliasing::{Aliased, DropBehavior};
 
+/// A wrapper type for values stored in [`Inner`](crate::inner::Inner).
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct Value<T, D = NoDrop>(pub(super) Aliased<T, D>)

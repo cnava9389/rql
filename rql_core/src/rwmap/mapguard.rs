@@ -1,6 +1,6 @@
+use ahash::RandomState;
+use hashbrown::HashMap;
 use std::borrow::Borrow;
-use std::collections::hash_map::RandomState;
-use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash};
 
 use left_right::ReadGuard;
